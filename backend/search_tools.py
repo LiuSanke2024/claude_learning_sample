@@ -133,9 +133,108 @@ class CourseSearchTool(Tool):
 
         return "\n\n".join(formatted)
 
+class CourseOutlineTool(Tool):
+    """Tool for getting complete course outlines with lessons"""
+
+    def __init__(self, vector_store: VectorStore):
+        self.store = vector_store
+
+    def get_tool_definition(self) -> Dict[str, Any]:
+        """Return Anthropic tool definition for this tool"""
+        return {
+            "name": "get_course_outline",
+            "description": "Get complete course outline including title, link, and all lessons with their numbers and titles",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "course_title": {
+                        "type": "string",
+                        "description": "Course title (partial matches work, e.g. 'MCP', 'Introduction')"
+                    }
+                },
+                "required": ["course_title"]
+            }
+        }
+
+    def execute(self, course_title: str) -> str:
+        """
+        Execute the course outline tool.
+
+        Args:
+            course_title: Course title to get outline for
+
+        Returns:
+            Formatted course outline or error message
+        """
+        # Resolve course name using existing fuzzy matching
+        resolved_title = self.store._resolve_course_name(course_title)
+        if not resolved_title:
+            return f"No course found matching '{course_title}'"
+
+        # Get course metadata
+        course_outline = self._get_course_outline(resolved_title)
+        if not course_outline:
+            return f"Could not retrieve outline for course '{resolved_title}'"
+
+        return self._format_outline(course_outline)
+
+    def _get_course_outline(self, course_title: str) -> Optional[Dict[str, Any]]:
+        """Get course outline data from vector store"""
+        import json
+        try:
+            # Get course by ID (title is the ID)
+            results = self.store.course_catalog.get(ids=[course_title])
+            if results and 'metadatas' in results and results['metadatas']:
+                metadata = results['metadatas'][0]
+
+                # Parse lessons from JSON
+                lessons = []
+                lessons_json = metadata.get('lessons_json')
+                if lessons_json:
+                    lessons = json.loads(lessons_json)
+
+                return {
+                    'title': metadata.get('title', course_title),
+                    'course_link': metadata.get('course_link'),
+                    'instructor': metadata.get('instructor'),
+                    'lessons': lessons
+                }
+            return None
+        except Exception as e:
+            print(f"Error getting course outline: {e}")
+            return None
+
+    def _format_outline(self, outline: Dict[str, Any]) -> str:
+        """Format course outline for display"""
+        lines = []
+
+        # Course title and link
+        title = outline['title']
+        lines.append(f"**Course:** {title}")
+
+        if outline.get('course_link'):
+            lines.append(f"**Course Link:** {outline['course_link']}")
+
+        if outline.get('instructor'):
+            lines.append(f"**Instructor:** {outline['instructor']}")
+
+        # Lessons
+        lessons = outline.get('lessons', [])
+        if lessons:
+            lines.append(f"\n**Course Outline ({len(lessons)} lessons):**")
+            for lesson in sorted(lessons, key=lambda x: x.get('lesson_number', 0)):
+                lesson_num = lesson.get('lesson_number')
+                lesson_title = lesson.get('lesson_title', 'Untitled Lesson')
+                lines.append(f"  Lesson {lesson_num}: {lesson_title}")
+        else:
+            lines.append("\n**Course Outline:** No lessons found")
+
+        return "\n".join(lines)
+
+
 class ToolManager:
     """Manages available tools for the AI"""
-    
+
     def __init__(self):
         self.tools = {}
     

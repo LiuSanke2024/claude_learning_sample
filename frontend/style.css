@@ -267,6 +267,29 @@ header h1 {
     border-radius: 2px;
 }
 
+/* Message content link styling for better visibility */
+.message-content a {
+    color: #60a5fa; /* Light blue color for better contrast */
+    text-decoration: underline;
+    transition: color 0.2s ease;
+    font-weight: 500;
+}
+
+.message-content a:hover {
+    color: #93c5fd; /* Lighter blue on hover */
+    text-decoration: underline;
+}
+
+.message-content a:visited {
+    color: #a78bfa; /* Light purple for visited links */
+}
+
+.message-content a:focus {
+    outline: 2px solid #60a5fa;
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
 /* Markdown formatting styles */
 .message-content h1,
 .message-content h2,
