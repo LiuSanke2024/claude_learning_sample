@@ -34,6 +34,28 @@ cp .env.example .env
 nano .env
 ```
 
+### Development Workflow
+
+```bash
+# Add new course documents (place .txt files in docs/ directory)
+# Files are automatically loaded on server startup
+# Expected format: Course Title/Link/Instructor + Lessons with content
+
+# Reset/clear vector database
+rm -rf backend/chroma_db
+
+# Verify system is working
+curl http://localhost:8000/api/courses
+```
+
+### Testing
+Currently no test framework is configured. Future implementations should use:
+```bash
+# If tests are added in the future
+uv add pytest
+uv run pytest
+```
+
 ## Architecture Overview
 
 This is a **RAG (Retrieval-Augmented Generation) System** for querying course materials using AI-powered semantic search.
@@ -71,6 +93,17 @@ This is a **RAG (Retrieval-Augmented Generation) System** for querying course ma
 2. **Query Processing**: User input → Session context → AI with tools → Vector search (if needed) → Response synthesis
 3. **Frontend Integration**: FastAPI serves both API endpoints and static files for the web interface
 
+### API Endpoints
+
+**POST `/api/query`**: Process user queries with optional session management
+- Request: `{"query": "string", "session_id": "optional_string"}`
+- Response: `{"answer": "string", "sources": ["string"], "session_id": "string"}`
+
+**GET `/api/courses`**: Get course statistics and analytics
+- Response: `{"total_courses": int, "course_titles": ["string"]}`
+
+**GET `/`**: Web interface (served from `/frontend/` directory)
+
 ### Key Architectural Decisions
 
 **Two-Collection Vector Strategy**: Separates course metadata from content for efficient filtering and search
@@ -87,22 +120,62 @@ This is a **RAG (Retrieval-Augmented Generation) System** for querying course ma
 
 ### Development Patterns
 
-**Document Format**: Expected structure for course files:
+**Document Format**: Required structure for course files in `/docs/` directory:
 ```
-Course Title: [title]
-Course Link: [url]
-Course Instructor: [instructor]
+Course Title: Building Towards Computer Use with Anthropic
+Course Link: https://www.deeplearning.ai/short-courses/building-toward-computer-use-with-anthropic/
+Course Instructor: Colt Steele
 
-Lesson 0: [lesson title]
+Lesson 0: Introduction
+Lesson Link: https://learn.deeplearning.ai/courses/building-toward-computer-use-with-anthropic/lesson/a6k0z/introduction
+Welcome to Building Toward Computer Use with Anthropic. Built in partnership with Anthropic...
+
+Lesson 1: Next Lesson Title
 Lesson Link: [lesson url]
 [lesson content...]
 ```
+
+**File Naming**: Use descriptive names like `course1_script.txt`, `python_fundamentals.txt`
 
 **Error Handling**: Each component returns structured errors rather than exceptions for graceful degradation
 
 **API Design**: RESTful endpoints (`/api/query`, `/api/courses`) with Pydantic models for request/response validation
 
+## Troubleshooting
+
+### Common Issues
+
+**"ANTHROPIC_API_KEY not found"**: Ensure `.env` file exists with valid API key
+```bash
+# Check if .env exists
+ls -la .env
+# Should contain: ANTHROPIC_API_KEY=your_key_here
+```
+
+**ChromaDB Permission Errors**: Reset the database directory
+```bash
+rm -rf backend/chroma_db
+# Restart server to recreate
+```
+
+**No courses loaded**: Verify documents are in correct format and location
+```bash
+# Check docs directory
+ls docs/
+# Files should be .txt with proper course format (see Development Patterns below)
+```
+
+**Port 8000 already in use**: Find and kill existing process
+```bash
+lsof -ti:8000 | xargs kill -9
+```
+
+### Development Notes
+
 When working with this codebase, focus on maintaining the modular architecture where each component has a single responsibility in the RAG pipeline.
-- always use uv to run the server do not use pip directly
-- make sure to use uv to manage all dependencies
-- use uv to run python files
+
+**Critical Dependencies**:
+- Always use `uv` for package management (not pip directly)
+- Use `uv run` prefix for Python commands
+- ChromaDB storage auto-created in `backend/chroma_db/`
+- Server runs on port 8000 by default
