@@ -1,5 +1,7 @@
+from typing import Dict, List, Optional
+
 import anthropic
-from typing import List, Optional, Dict
+
 
 class AIGenerator:
     """
@@ -11,7 +13,7 @@ class AIGenerator:
     - Graceful error handling for tool failures
     - Backward compatible with single-round tool calling
     """
-    
+
     # Static system prompt to avoid rebuilding on each call
     SYSTEM_PROMPT = """ You are an AI assistant specialized in course materials and educational content with access to comprehensive search tools for course information.
 
@@ -46,17 +48,13 @@ All responses must be:
 4. **Example-supported** - Include relevant examples when they aid understanding
 Provide only the direct answer to what was asked.
 """
-    
+
     def __init__(self, api_key: str, model: str):
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
-        
+
         # Pre-build base API parameters
-        self.base_params = {
-            "model": self.model,
-            "temperature": 0,
-            "max_tokens": 800
-        }
+        self.base_params = {"model": self.model, "temperature": 0, "max_tokens": 800}
 
     def _build_system_content(self, conversation_history: Optional[str]) -> str:
         """
@@ -74,7 +72,9 @@ Provide only the direct answer to what was asked.
             else self.SYSTEM_PROMPT
         )
 
-    def _make_api_call(self, messages: List[Dict], system_content: str, tools: Optional[List] = None):
+    def _make_api_call(
+        self, messages: List[Dict], system_content: str, tools: Optional[List] = None
+    ):
         """
         Make API call with proper parameter setup.
 
@@ -89,7 +89,7 @@ Provide only the direct answer to what was asked.
         api_params = {
             **self.base_params,
             "messages": messages,
-            "system": system_content
+            "system": system_content,
         }
 
         if tools:
@@ -115,28 +115,37 @@ Provide only the direct answer to what was asked.
             if content_block.type == "tool_use":
                 try:
                     tool_result = tool_manager.execute_tool(
-                        content_block.name,
-                        **content_block.input
+                        content_block.name, **content_block.input
                     )
 
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": content_block.id,
-                        "content": tool_result
-                    })
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": content_block.id,
+                            "content": tool_result,
+                        }
+                    )
                 except Exception as e:
                     # Handle tool execution errors gracefully
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": content_block.id,
-                        "content": f"Tool execution failed: {str(e)}"
-                    })
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": content_block.id,
+                            "content": f"Tool execution failed: {str(e)}",
+                        }
+                    )
 
         return tool_results if tool_results else None
 
-    def _execute_sequential_rounds(self, initial_response, system_content: str,
-                                  initial_messages: List[Dict], tools: Optional[List],
-                                  tool_manager, max_rounds: int) -> str:
+    def _execute_sequential_rounds(
+        self,
+        initial_response,
+        system_content: str,
+        initial_messages: List[Dict],
+        tools: Optional[List],
+        tool_manager,
+        max_rounds: int,
+    ) -> str:
         """
         Execute up to max_rounds of sequential tool calling with conversation context preservation.
 
@@ -168,7 +177,11 @@ Provide only the direct answer to what was asked.
 
             if not tool_results:
                 # Tool execution failed - return what we have
-                return current_response.content[0].text if current_response.content else "Tool execution failed"
+                return (
+                    current_response.content[0].text
+                    if current_response.content
+                    else "Tool execution failed"
+                )
 
             # Add tool results to conversation
             messages.append({"role": "user", "content": tool_results})
@@ -177,20 +190,29 @@ Provide only the direct answer to what was asked.
             # Check termination condition: Max rounds reached
             if round_count >= max_rounds:
                 # Final call without tools for definitive answer
-                final_response = self._make_api_call(messages, system_content, tools=None)
+                final_response = self._make_api_call(
+                    messages, system_content, tools=None
+                )
                 return final_response.content[0].text
 
             # Continue with next round - keep tools available
             current_response = self._make_api_call(messages, system_content, tools)
 
         # Fallback - should not reach here
-        return current_response.content[0].text if current_response.content else "No response generated"
+        return (
+            current_response.content[0].text
+            if current_response.content
+            else "No response generated"
+        )
 
-    def generate_response(self, query: str,
-                         conversation_history: Optional[str] = None,
-                         tools: Optional[List] = None,
-                         tool_manager=None,
-                         max_rounds: int = 2) -> str:
+    def generate_response(
+        self,
+        query: str,
+        conversation_history: Optional[str] = None,
+        tools: Optional[List] = None,
+        tool_manager=None,
+        max_rounds: int = 2,
+    ) -> str:
         """
         Generate AI response with sequential tool calling capability.
 
@@ -217,7 +239,12 @@ Provide only the direct answer to what was asked.
         # Handle sequential tool execution if needed
         if response.stop_reason == "tool_use" and tool_manager:
             return self._execute_sequential_rounds(
-                response, system_content, initial_messages, tools, tool_manager, max_rounds
+                response,
+                system_content,
+                initial_messages,
+                tools,
+                tool_manager,
+                max_rounds,
             )
 
         # Return direct response if no tools used

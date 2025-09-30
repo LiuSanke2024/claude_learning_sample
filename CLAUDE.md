@@ -49,12 +49,39 @@ curl http://localhost:8000/api/courses
 ```
 
 ### Testing
-Currently no test framework is configured. Future implementations should use:
 ```bash
-# If tests are added in the future
-uv add pytest
+# Run all tests
 uv run pytest
+
+# Run with verbose output
+uv run pytest -v
+
+# Run specific test file
+uv run pytest backend/tests/test_rag_system.py
 ```
+
+### Code Quality
+
+```bash
+# Auto-format code (Black + isort)
+./format.sh
+
+# Run all quality checks (format check, linting, tests)
+./quality_check.sh
+
+# Individual tools
+uv run black backend/              # Format code
+uv run black --check backend/      # Check formatting without changes
+uv run isort backend/              # Sort imports
+uv run isort --check-only backend/ # Check import sorting
+uv run flake8 backend/             # Lint code
+```
+
+**Quality Standards**:
+- Line length: 88 characters (Black default)
+- Import sorting: Black-compatible profile via isort
+- Linting: flake8 with Black-compatible settings
+- All code must pass quality checks before committing
 
 ## Architecture Overview
 

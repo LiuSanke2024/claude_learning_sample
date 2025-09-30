@@ -1,18 +1,20 @@
 """
 Tests for RAG system content-query handling
 """
-import pytest
-import tempfile
+
 import os
-from unittest.mock import Mock, patch, MagicMock
 import sys
+import tempfile
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 # Add parent directory to path to import modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from rag_system import RAGSystem
-from models import Course, Lesson, CourseChunk
 from config import Config
+from models import Course, CourseChunk, Lesson
+from rag_system import RAGSystem
 
 
 class TestRAGSystemContentQueryHandling:
@@ -21,10 +23,12 @@ class TestRAGSystemContentQueryHandling:
     @pytest.fixture
     def mock_rag_system(self, test_config):
         """Create RAG system with mocked components"""
-        with patch('rag_system.VectorStore') as mock_vs, \
-             patch('rag_system.AIGenerator') as mock_ai, \
-             patch('rag_system.DocumentProcessor') as mock_doc, \
-             patch('rag_system.SessionManager') as mock_session:
+        with (
+            patch("rag_system.VectorStore") as mock_vs,
+            patch("rag_system.AIGenerator") as mock_ai,
+            patch("rag_system.DocumentProcessor") as mock_doc,
+            patch("rag_system.SessionManager") as mock_session,
+        ):
 
             rag = RAGSystem(test_config)
 
@@ -47,10 +51,14 @@ class TestRAGSystemContentQueryHandling:
     def test_query_basic_content_search(self, mock_rag_system):
         """Test basic content search query processing"""
         # Mock AI response indicating tool use
-        mock_rag_system.ai_generator.generate_response.return_value = "Machine learning is a powerful technology..."
+        mock_rag_system.ai_generator.generate_response.return_value = (
+            "Machine learning is a powerful technology..."
+        )
 
         # Mock tool manager sources
-        mock_sources = [{"text": "ML Course - Lesson 1", "url": "https://example.com/lesson1"}]
+        mock_sources = [
+            {"text": "ML Course - Lesson 1", "url": "https://example.com/lesson1"}
+        ]
         mock_rag_system.tool_manager.get_last_sources.return_value = mock_sources
 
         response, sources = mock_rag_system.query("What is machine learning?")
@@ -72,17 +80,25 @@ class TestRAGSystemContentQueryHandling:
 
         # Mock conversation history
         mock_history = "User: Hello\nAssistant: Hi there!"
-        mock_rag_system.session_manager.get_conversation_history.return_value = mock_history
+        mock_rag_system.session_manager.get_conversation_history.return_value = (
+            mock_history
+        )
 
-        mock_rag_system.ai_generator.generate_response.return_value = "Follow-up response"
+        mock_rag_system.ai_generator.generate_response.return_value = (
+            "Follow-up response"
+        )
         mock_rag_system.tool_manager.get_last_sources.return_value = []
 
-        response, sources = mock_rag_system.query("Follow-up question", session_id=session_id)
+        response, sources = mock_rag_system.query(
+            "Follow-up question", session_id=session_id
+        )
 
         assert response == "Follow-up response"
 
         # Verify session history was retrieved
-        mock_rag_system.session_manager.get_conversation_history.assert_called_with(session_id)
+        mock_rag_system.session_manager.get_conversation_history.assert_called_with(
+            session_id
+        )
 
         # Verify conversation was updated
         mock_rag_system.session_manager.add_exchange.assert_called_with(
@@ -95,7 +111,9 @@ class TestRAGSystemContentQueryHandling:
 
     def test_query_without_session(self, mock_rag_system):
         """Test query processing without session management"""
-        mock_rag_system.ai_generator.generate_response.return_value = "Response without session"
+        mock_rag_system.ai_generator.generate_response.return_value = (
+            "Response without session"
+        )
         mock_rag_system.tool_manager.get_last_sources.return_value = []
 
         response, sources = mock_rag_system.query("Test question")
@@ -136,11 +154,14 @@ class TestRAGSystemContentQueryHandling:
         assert "Answer this question about course materials:" in prompt
         assert test_query in prompt
 
-    def test_add_course_document_success(self, mock_rag_system, sample_course, sample_course_chunks):
+    def test_add_course_document_success(
+        self, mock_rag_system, sample_course, sample_course_chunks
+    ):
         """Test successful addition of course document"""
         # Mock document processor
         mock_rag_system.document_processor.process_course_document.return_value = (
-            sample_course, sample_course_chunks
+            sample_course,
+            sample_course_chunks,
         )
 
         course, chunk_count = mock_rag_system.add_course_document("/path/to/course.txt")
@@ -149,13 +170,19 @@ class TestRAGSystemContentQueryHandling:
         assert chunk_count == len(sample_course_chunks)
 
         # Verify vector store operations
-        mock_rag_system.vector_store.add_course_metadata.assert_called_once_with(sample_course)
-        mock_rag_system.vector_store.add_course_content.assert_called_once_with(sample_course_chunks)
+        mock_rag_system.vector_store.add_course_metadata.assert_called_once_with(
+            sample_course
+        )
+        mock_rag_system.vector_store.add_course_content.assert_called_once_with(
+            sample_course_chunks
+        )
 
     def test_add_course_document_processing_error(self, mock_rag_system):
         """Test handling of document processing errors"""
         # Mock processing error
-        mock_rag_system.document_processor.process_course_document.side_effect = Exception("Processing failed")
+        mock_rag_system.document_processor.process_course_document.side_effect = (
+            Exception("Processing failed")
+        )
 
         course, chunk_count = mock_rag_system.add_course_document("/invalid/path.txt")
 
@@ -172,9 +199,9 @@ class TestRAGSystemContentQueryHandling:
         course1_path = os.path.join(temp_dir, "course1.txt")
         course2_path = os.path.join(temp_dir, "course2.txt")
 
-        with open(course1_path, 'w') as f:
+        with open(course1_path, "w") as f:
             f.write("Test course 1 content")
-        with open(course2_path, 'w') as f:
+        with open(course2_path, "w") as f:
             f.write("Test course 2 content")
 
         # Mock existing courses
@@ -182,14 +209,20 @@ class TestRAGSystemContentQueryHandling:
 
         # Mock document processing
         def mock_process(file_path):
-            course_name = os.path.basename(file_path).replace('.txt', '')
+            course_name = os.path.basename(file_path).replace(".txt", "")
             course = Course(title=f"Test Course {course_name}")
-            chunks = [CourseChunk(content="test", course_title=course.title, chunk_index=0)]
+            chunks = [
+                CourseChunk(content="test", course_title=course.title, chunk_index=0)
+            ]
             return course, chunks
 
-        mock_rag_system.document_processor.process_course_document.side_effect = mock_process
+        mock_rag_system.document_processor.process_course_document.side_effect = (
+            mock_process
+        )
 
-        total_courses, total_chunks = mock_rag_system.add_course_folder(temp_dir, clear_existing=True)
+        total_courses, total_chunks = mock_rag_system.add_course_folder(
+            temp_dir, clear_existing=True
+        )
 
         assert total_courses == 2
         assert total_chunks == 2
@@ -201,14 +234,17 @@ class TestRAGSystemContentQueryHandling:
         """Test that existing courses are skipped"""
         # Create test file
         course_path = os.path.join(temp_dir, "existing_course.txt")
-        with open(course_path, 'w') as f:
+        with open(course_path, "w") as f:
             f.write("Test content")
 
         # Mock existing course
         existing_course = Course(title="Existing Course")
-        mock_rag_system.vector_store.get_existing_course_titles.return_value = ["Existing Course"]
+        mock_rag_system.vector_store.get_existing_course_titles.return_value = [
+            "Existing Course"
+        ]
         mock_rag_system.document_processor.process_course_document.return_value = (
-            existing_course, []
+            existing_course,
+            [],
         )
 
         total_courses, total_chunks = mock_rag_system.add_course_folder(temp_dir)
@@ -221,7 +257,9 @@ class TestRAGSystemContentQueryHandling:
 
     def test_add_course_folder_nonexistent_path(self, mock_rag_system):
         """Test handling of nonexistent folder path"""
-        total_courses, total_chunks = mock_rag_system.add_course_folder("/nonexistent/path")
+        total_courses, total_chunks = mock_rag_system.add_course_folder(
+            "/nonexistent/path"
+        )
 
         assert total_courses == 0
         assert total_chunks == 0
@@ -230,7 +268,9 @@ class TestRAGSystemContentQueryHandling:
         """Test course analytics retrieval"""
         mock_rag_system.vector_store.get_course_count.return_value = 5
         mock_rag_system.vector_store.get_existing_course_titles.return_value = [
-            "Course 1", "Course 2", "Course 3"
+            "Course 1",
+            "Course 2",
+            "Course 3",
         ]
 
         analytics = mock_rag_system.get_course_analytics()
@@ -247,38 +287,43 @@ class TestRAGSystemContentQueryHandling:
         mock_rag_system.session_manager.get_conversation_history.return_value = None
 
         # Mock AI response with tool usage
-        mock_rag_system.ai_generator.generate_response.return_value = (
-            "Machine learning is a subset of AI that enables computers to learn from data."
-        )
+        mock_rag_system.ai_generator.generate_response.return_value = "Machine learning is a subset of AI that enables computers to learn from data."
 
         # Mock sources from tool execution
         mock_sources = [
-            {"text": "ML Fundamentals - Lesson 1", "url": "https://example.com/ml-lesson1"},
-            {"text": "AI Basics - Lesson 3", "url": "https://example.com/ai-lesson3"}
+            {
+                "text": "ML Fundamentals - Lesson 1",
+                "url": "https://example.com/ml-lesson1",
+            },
+            {"text": "AI Basics - Lesson 3", "url": "https://example.com/ai-lesson3"},
         ]
         mock_rag_system.tool_manager.get_last_sources.return_value = mock_sources
 
         # Execute query
         response, sources = mock_rag_system.query(
-            "What is machine learning and how does it work?",
-            session_id=session_id
+            "What is machine learning and how does it work?", session_id=session_id
         )
 
         # Verify complete workflow
-        assert response == "Machine learning is a subset of AI that enables computers to learn from data."
+        assert (
+            response
+            == "Machine learning is a subset of AI that enables computers to learn from data."
+        )
         assert sources == mock_sources
 
         # Verify AI was called with proper tools and prompt
         ai_call = mock_rag_system.ai_generator.generate_response.call_args
         assert "Answer this question about course materials:" in ai_call[1]["query"]
-        assert ai_call[1]["tools"] == mock_rag_system.tool_manager.get_tool_definitions()
+        assert (
+            ai_call[1]["tools"] == mock_rag_system.tool_manager.get_tool_definitions()
+        )
         assert ai_call[1]["tool_manager"] == mock_rag_system.tool_manager
 
         # Verify session was updated
         mock_rag_system.session_manager.add_exchange.assert_called_with(
             session_id,
             "What is machine learning and how does it work?",
-            "Machine learning is a subset of AI that enables computers to learn from data."
+            "Machine learning is a subset of AI that enables computers to learn from data.",
         )
 
         # Verify sources were reset
@@ -287,7 +332,9 @@ class TestRAGSystemContentQueryHandling:
     def test_query_error_handling_in_ai_generation(self, mock_rag_system):
         """Test error handling when AI generation fails"""
         # Mock AI generator to raise exception
-        mock_rag_system.ai_generator.generate_response.side_effect = Exception("API Error")
+        mock_rag_system.ai_generator.generate_response.side_effect = Exception(
+            "API Error"
+        )
 
         # Should not crash, but may return None or empty response
         with pytest.raises(Exception):
@@ -295,10 +342,12 @@ class TestRAGSystemContentQueryHandling:
 
     def test_tool_manager_initialization(self, test_config):
         """Test that RAG system properly initializes tool manager with tools"""
-        with patch('rag_system.VectorStore'), \
-             patch('rag_system.AIGenerator'), \
-             patch('rag_system.DocumentProcessor'), \
-             patch('rag_system.SessionManager'):
+        with (
+            patch("rag_system.VectorStore"),
+            patch("rag_system.AIGenerator"),
+            patch("rag_system.DocumentProcessor"),
+            patch("rag_system.SessionManager"),
+        ):
 
             rag = RAGSystem(test_config)
 
@@ -345,7 +394,9 @@ class TestRAGSystemContentQueryHandling:
                 return "Session 2 history"
             return None
 
-        mock_rag_system.session_manager.get_conversation_history.side_effect = mock_get_history
+        mock_rag_system.session_manager.get_conversation_history.side_effect = (
+            mock_get_history
+        )
         mock_rag_system.ai_generator.generate_response.return_value = "Response"
         mock_rag_system.tool_manager.get_last_sources.return_value = []
 
@@ -354,7 +405,9 @@ class TestRAGSystemContentQueryHandling:
         mock_rag_system.query("Question 2", session_id=session2)
 
         # Verify correct histories were used
-        history_calls = mock_rag_system.session_manager.get_conversation_history.call_args_list
+        history_calls = (
+            mock_rag_system.session_manager.get_conversation_history.call_args_list
+        )
         assert len(history_calls) == 2
         assert history_calls[0][0][0] == session1
         assert history_calls[1][0][0] == session2

@@ -1,10 +1,12 @@
 """
 Tests for CourseSearchTool.execute() method
 """
-import pytest
-from unittest.mock import Mock, patch
-import sys
+
 import os
+import sys
+from unittest.mock import Mock, patch
+
+import pytest
 
 # Add parent directory to path to import modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,9 +34,7 @@ class TestCourseSearchToolExecute:
         assert "Test Course: Machine Learning Basics" in result
         # Verify the vector store search was called with resolved course name
         search_tool.store.search.assert_called_with(
-            query="basic concepts",
-            course_name="Machine Learning",
-            lesson_number=None
+            query="basic concepts", course_name="Machine Learning", lesson_number=None
         )
 
     def test_execute_with_lesson_number_filter(self, search_tool):
@@ -44,26 +44,20 @@ class TestCourseSearchToolExecute:
         assert isinstance(result, str)
         assert "Lesson 2" in result
         search_tool.store.search.assert_called_with(
-            query="advanced topics",
-            course_name=None,
-            lesson_number=2
+            query="advanced topics", course_name=None, lesson_number=2
         )
 
     def test_execute_with_combined_filters(self, search_tool):
         """Test query execution with both course name and lesson number filters"""
         result = search_tool.execute(
-            "neural networks",
-            course_name="Test Course",
-            lesson_number=2
+            "neural networks", course_name="Test Course", lesson_number=2
         )
 
         assert isinstance(result, str)
         assert "Test Course: Machine Learning Basics" in result
         assert "Lesson 2" in result
         search_tool.store.search.assert_called_with(
-            query="neural networks",
-            course_name="Test Course",
-            lesson_number=2
+            query="neural networks", course_name="Test Course", lesson_number=2
         )
 
     def test_execute_empty_results(self, search_tool):
@@ -76,13 +70,14 @@ class TestCourseSearchToolExecute:
     def test_execute_empty_results_with_filters(self, search_tool):
         """Test empty results message includes filter information"""
         result = search_tool.execute(
-            "no results query",
-            course_name="Machine Learning",
-            lesson_number=1
+            "no results query", course_name="Machine Learning", lesson_number=1
         )
 
         assert isinstance(result, str)
-        assert "No relevant content found in course 'Machine Learning' in lesson 1" in result
+        assert (
+            "No relevant content found in course 'Machine Learning' in lesson 1"
+            in result
+        )
 
     def test_execute_with_error_from_vector_store(self, error_vector_store):
         """Test handling of errors from vector store"""
@@ -117,12 +112,17 @@ class TestCourseSearchToolExecute:
 
     def test_execute_sources_without_lesson_number(self, mock_vector_store):
         """Test sources when no lesson number is in metadata (course-level result)"""
+
         # Mock search to return result without lesson_number
-        def mock_search_no_lesson(query, course_name=None, lesson_number=None, limit=None):
+        def mock_search_no_lesson(
+            query, course_name=None, lesson_number=None, limit=None
+        ):
             return SearchResults(
                 documents=["Course overview content"],
-                metadata=[{"course_title": "Test Course: Machine Learning Basics"}],  # No lesson_number
-                distances=[0.1]
+                metadata=[
+                    {"course_title": "Test Course: Machine Learning Basics"}
+                ],  # No lesson_number
+                distances=[0.1],
             )
 
         mock_vector_store.search = Mock(side_effect=mock_search_no_lesson)
@@ -134,13 +134,19 @@ class TestCourseSearchToolExecute:
         source = tool.last_sources[0]
         assert source["text"] == "Test Course: Machine Learning Basics"
         # Should try to get course link instead of lesson link
-        mock_vector_store.get_course_link.assert_called_with("Test Course: Machine Learning Basics")
+        mock_vector_store.get_course_link.assert_called_with(
+            "Test Course: Machine Learning Basics"
+        )
 
     def test_execute_graceful_link_failure(self, mock_vector_store):
         """Test graceful handling when link retrieval fails"""
         # Mock link methods to raise exceptions
-        mock_vector_store.get_lesson_link = Mock(side_effect=Exception("Link service down"))
-        mock_vector_store.get_course_link = Mock(side_effect=Exception("Link service down"))
+        mock_vector_store.get_lesson_link = Mock(
+            side_effect=Exception("Link service down")
+        )
+        mock_vector_store.get_course_link = Mock(
+            side_effect=Exception("Link service down")
+        )
 
         tool = CourseSearchTool(mock_vector_store)
         result = tool.execute("introduction")
@@ -156,25 +162,37 @@ class TestCourseSearchToolExecute:
         """Test that results are properly formatted with headers and content"""
         result = search_tool.execute("introduction")
 
-        lines = result.split('\n')
+        lines = result.split("\n")
         # Should have header format: [Course - Lesson X]
-        assert any("[Test Course: Machine Learning Basics - Lesson 0]" in line for line in lines)
+        assert any(
+            "[Test Course: Machine Learning Basics - Lesson 0]" in line
+            for line in lines
+        )
         # Should have content
         assert any("introduction to machine learning" in line.lower() for line in lines)
 
     def test_execute_multiple_results_formatting(self, mock_vector_store):
         """Test formatting when multiple results are returned"""
-        def mock_search_multiple(query, course_name=None, lesson_number=None, limit=None):
+
+        def mock_search_multiple(
+            query, course_name=None, lesson_number=None, limit=None
+        ):
             return SearchResults(
                 documents=[
                     "First result about machine learning",
-                    "Second result about algorithms"
+                    "Second result about algorithms",
                 ],
                 metadata=[
-                    {"course_title": "Test Course: Machine Learning Basics", "lesson_number": 0},
-                    {"course_title": "Test Course: Machine Learning Basics", "lesson_number": 1}
+                    {
+                        "course_title": "Test Course: Machine Learning Basics",
+                        "lesson_number": 0,
+                    },
+                    {
+                        "course_title": "Test Course: Machine Learning Basics",
+                        "lesson_number": 1,
+                    },
                 ],
-                distances=[0.1, 0.2]
+                distances=[0.1, 0.2],
             )
 
         mock_vector_store.search = Mock(side_effect=mock_search_multiple)
@@ -183,7 +201,7 @@ class TestCourseSearchToolExecute:
         result = tool.execute("machine learning")
 
         # Should have multiple sections separated by double newlines
-        sections = result.split('\n\n')
+        sections = result.split("\n\n")
         assert len(sections) == 2
         assert "[Test Course: Machine Learning Basics - Lesson 0]" in sections[0]
         assert "[Test Course: Machine Learning Basics - Lesson 1]" in sections[1]
@@ -256,7 +274,5 @@ class TestCourseSearchToolExecute:
         assert isinstance(result, str)
         # Should pass query to vector store without modification
         search_tool.store.search.assert_called_with(
-            query=long_query,
-            course_name=None,
-            lesson_number=None
+            query=long_query, course_name=None, lesson_number=None
         )
