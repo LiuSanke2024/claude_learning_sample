@@ -2,8 +2,9 @@ import pytest
 import tempfile
 import shutil
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 from typing import List, Dict, Any
+from fastapi.testclient import TestClient
 
 # Add parent directory to path to import modules
 import sys
@@ -203,3 +204,128 @@ def error_vector_store():
     mock_store._resolve_course_name = Mock(return_value=None)
 
     return mock_store
+
+
+@pytest.fixture
+def mock_rag_system():
+    """Create a mock RAG system for API testing"""
+    mock_rag = Mock(spec=RAGSystem)
+
+    # Mock the query method
+    def mock_query(query: str, session_id: str = None):
+        if "error" in query.lower():
+            raise Exception("Test error occurred")
+
+        return (
+            "This is a test response about machine learning concepts.",
+            [
+                {
+                    "text": "Test Course: Machine Learning Basics - Lesson 1",
+                    "url": "https://example.com/lesson1"
+                }
+            ]
+        )
+
+    mock_rag.query = Mock(side_effect=mock_query)
+
+    # Mock get_course_analytics
+    mock_rag.get_course_analytics = Mock(return_value={
+        "total_courses": 2,
+        "course_titles": [
+            "Test Course: Machine Learning Basics",
+            "Advanced Deep Learning"
+        ]
+    })
+
+    # Mock session manager
+    mock_session_manager = Mock()
+    mock_session_manager.create_session = Mock(return_value="test-session-123")
+    mock_session_manager.clear_session = Mock()
+    mock_rag.session_manager = mock_session_manager
+
+    return mock_rag
+
+
+@pytest.fixture
+def test_app(mock_rag_system):
+    """Create a test FastAPI app with mocked dependencies"""
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+    from pydantic import BaseModel
+    from typing import List, Optional, Union
+
+    # Create test app (avoiding static file mounting issue)
+    app = FastAPI(title="Course Materials RAG System - Test", root_path="")
+
+    # Add CORS
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Define models inline
+    class QueryRequest(BaseModel):
+        query: str
+        session_id: Optional[str] = None
+
+    class SourceItem(BaseModel):
+        text: str
+        url: Optional[str] = None
+
+    class QueryResponse(BaseModel):
+        answer: str
+        sources: List[Union[str, SourceItem]]
+        session_id: str
+
+    class CourseStats(BaseModel):
+        total_courses: int
+        course_titles: List[str]
+
+    class SessionClearRequest(BaseModel):
+        session_id: str
+
+    class SessionClearResponse(BaseModel):
+        success: bool
+        message: str
+
+    # Define endpoints
+    @app.post("/api/query", response_model=QueryResponse)
+    async def query_documents(request: QueryRequest):
+        session_id = request.session_id
+        if not session_id:
+            session_id = mock_rag_system.session_manager.create_session()
+
+        answer, sources = mock_rag_system.query(request.query, session_id)
+
+        return QueryResponse(
+            answer=answer,
+            sources=sources,
+            session_id=session_id
+        )
+
+    @app.get("/api/courses", response_model=CourseStats)
+    async def get_course_stats():
+        analytics = mock_rag_system.get_course_analytics()
+        return CourseStats(
+            total_courses=analytics["total_courses"],
+            course_titles=analytics["course_titles"]
+        )
+
+    @app.post("/api/session/clear", response_model=SessionClearResponse)
+    async def clear_session(request: SessionClearRequest):
+        mock_rag_system.session_manager.clear_session(request.session_id)
+        return SessionClearResponse(
+            success=True,
+            message=f"Session {request.session_id} cleared successfully"
+        )
+
+    return app
+
+
+@pytest.fixture
+def api_client(test_app):
+    """Create a test client for API testing"""
+    return TestClient(test_app)
