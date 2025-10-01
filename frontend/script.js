@@ -5,7 +5,7 @@ const API_URL = '/api';
 let currentSessionId = null;
 
 // DOM elements
-let chatMessages, chatInput, sendButton, totalCourses, courseTitles;
+let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatButton, themeToggle;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,8 +15,11 @@ document.addEventListener('DOMContentLoaded', () => {
     sendButton = document.getElementById('sendButton');
     totalCourses = document.getElementById('totalCourses');
     courseTitles = document.getElementById('courseTitles');
-    
+    newChatButton = document.getElementById('newChatButton');
+    themeToggle = document.getElementById('themeToggle');
+
     setupEventListeners();
+    loadTheme();
     createNewSession();
     loadCourseStats();
 });
@@ -28,8 +31,19 @@ function setupEventListeners() {
     chatInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
     });
-    
-    
+
+    // New chat button
+    newChatButton.addEventListener('click', startNewChat);
+
+    // Theme toggle
+    themeToggle.addEventListener('click', toggleTheme);
+    themeToggle.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggleTheme();
+        }
+    });
+
     // Suggested questions
     document.querySelectorAll('.suggested-item').forEach(button => {
         button.addEventListener('click', (e) => {
@@ -122,10 +136,24 @@ function addMessage(content, type, sources = null, isWelcome = false) {
     let html = `<div class="message-content">${displayContent}</div>`;
     
     if (sources && sources.length > 0) {
+        // Handle both new object format and old string format for backward compatibility
+        const sourceElements = sources.map(source => {
+            if (typeof source === 'string') {
+                // Backward compatibility - just text
+                return escapeHtml(source);
+            } else if (source.url) {
+                // New format with link - create clickable link
+                return `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.text)}</a>`;
+            } else {
+                // New format but no link - just text
+                return escapeHtml(source.text);
+            }
+        });
+
         html += `
             <details class="sources-collapsible">
                 <summary class="sources-header">Sources</summary>
-                <div class="sources-content">${sources.join(', ')}</div>
+                <div class="sources-content">${sourceElements.join(', ')}</div>
             </details>
         `;
     }
@@ -150,6 +178,32 @@ async function createNewSession() {
     currentSessionId = null;
     chatMessages.innerHTML = '';
     addMessage('Welcome to the Course Materials Assistant! I can help you with questions about courses, lessons and specific content. What would you like to know?', 'assistant', null, true);
+}
+
+async function startNewChat() {
+    // Clear current session on backend if exists
+    if (currentSessionId) {
+        try {
+            await fetch(`${API_URL}/session/clear`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ session_id: currentSessionId })
+            });
+        } catch (error) {
+            console.warn('Failed to clear backend session:', error);
+            // Continue anyway - frontend will still reset
+        }
+    }
+
+    // Reset frontend state
+    createNewSession();
+
+    // Re-enable input and focus
+    chatInput.disabled = false;
+    sendButton.disabled = false;
+    chatInput.focus();
 }
 
 // Load course statistics
@@ -188,4 +242,18 @@ async function loadCourseStats() {
             courseTitles.innerHTML = '<span class="error">Failed to load courses</span>';
         }
     }
+}
+
+// Theme Functions
+function loadTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.body.setAttribute('data-theme', savedTheme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.body.getAttribute('data-theme') || 'dark';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+    document.body.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
 }
